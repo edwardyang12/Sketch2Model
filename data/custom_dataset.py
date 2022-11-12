@@ -65,4 +65,5 @@ if __name__ == "__main__":
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
                                          shuffle=True, pin_memory=True, drop_last=True)
     for i, data in tqdm(enumerate(dataloader)):
-        continue
+        print(data[0])
+        break
