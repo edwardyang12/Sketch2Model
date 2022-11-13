@@ -1,6 +1,7 @@
 import os 
 import csv
 from tqdm import tqdm
+import random
 
 # process TU Berlin dataset
 def process_tuber():
@@ -52,7 +53,14 @@ def process_sketchy():
                     writer.writerow([dirpath + "/" + name, sub])
     return classes 
 
-def overlap_dataset(overlaps):
+def overlap_dataset(overlaps, count = 0):
+
+    if count>0:
+        temp = set()
+        for i, val in enumerate(random.sample(overlaps, count)):
+            temp.add(val)
+        overlaps = temp
+
     with open('sketchy_photo.csv') as f_open:
         csv_reader = csv.reader(f_open)
         with open('overlap_photo.csv', 'w') as f:
@@ -104,4 +112,4 @@ if __name__ == "__main__":
     tuber_classes = process_tuber()
     sketchy_classes = process_sketchy()
     overlaps = tuber_classes.intersection(sketchy_classes)
-    overlap_dataset(overlaps)
+    overlap_dataset(overlaps, count=10)

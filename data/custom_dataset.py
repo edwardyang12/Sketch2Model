@@ -15,16 +15,16 @@ class CustomDataset(Dataset):
         self.sketch = pd.read_csv(sketchpath)
         self.image = pd.read_csv(imagepath)
         self.size = size
+        self.classes = set()
+        for index, row in self.image.iterrows():
+            self.classes.add(row['class'])
+        self.classes = list(self.classes)
 
     def data_aug(self, sketch=False):
         transform_list = []
-        if not sketch:
-            transform_list += [Transforms.RandomPosterize(random.randint(5, 8)),]
         transform_list += [Transforms.ToTensor(),]
         if not sketch:
             transform_list += [
-                Transforms.RandomAdjustSharpness(random.uniform(0.2, 2.2)),
-                Transforms.GaussianBlur(kernel_size=9, sigma=(0.1,3)),
                 Transforms.ColorJitter(brightness=.5, contrast=.3, saturation=.3),
                 Transforms.RandomHorizontalFlip(),
                 Transforms.Normalize(
@@ -40,7 +40,7 @@ class CustomDataset(Dataset):
         name = filename.values[index][0]
         temp = Image.open(name).convert('RGB')
         temp = temp.resize((self.size,self.size), resample=Image.Resampling.BICUBIC)
-        return temp, class_name
+        return temp, class_name, self.classes.index(class_name)
 
     def __len__(self):
         return len(self.sketch)
@@ -54,7 +54,7 @@ class CustomDataset(Dataset):
         image, rName = self.load_image(self.image, temp)
         transform = self.data_aug()
         image = transform(image)
-        return sketch, class_name, image, rName
+        return sketch, class_id, image, rid, class_name, rName
 
 if __name__ == "__main__":
     sketch_path = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/sketchy_sketch.csv"

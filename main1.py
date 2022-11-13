@@ -11,7 +11,7 @@ import sys
 import random
 
 from nets.utils import ReplayBuffer, weights_init
-from nets.discriminator import PatchMiniBatch as Discriminator
+from nets.discriminator import PatchMiniBatchNoise as Discriminator
 from nets.generator import ResnetGenerator as Generator
 from data.custom_dataset import CustomDataset
 
@@ -59,6 +59,7 @@ netD_B.apply(weights_init)
 criterion_GAN = torch.nn.MSELoss()
 criterion_cycle = torch.nn.L1Loss()
 criterion_identity = torch.nn.L1Loss()
+criterion_classification = nn.CrossEntropyLoss()
 
 # Optimizers & LR schedulers
 optimizer_G = torch.optim.Adam(itertools.chain(netG_A2B.parameters(), netG_B2A.parameters()),
@@ -96,7 +97,7 @@ for epoch in range(num_epochs):
     for i, data in enumerate(dataloader):
 
         i = i*batch_size
-        simdata, _, data, _, simname, realname = data
+        simdata, sim_id, data, data_id, simname, realname = data
 
         b_size,channels,h,w = data.shape
 
