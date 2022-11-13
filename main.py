@@ -175,6 +175,7 @@ for epoch in range(num_epochs):
 
         optimizer_D_B.step()
 
+        step = epoch*(len(dataloader)-1)*batch_size + i
         if i % 1000 == 0:
             loss_dict = {
                 'loss_G': loss_G.item(),
@@ -184,7 +185,7 @@ for epoch in range(num_epochs):
                 'loss_D': (loss_D_A + loss_D_B).item()
 
             }
-            writer.add_scalars('losses', loss_dict, i)
+            writer.add_scalars('losses', loss_dict, step)
 
         if i % 4000 == 0 or ((epoch == num_epochs-1) and (i == (len(dataloader)-1)*batch_size)):
             with torch.no_grad():
@@ -192,16 +193,16 @@ for epoch in range(num_epochs):
                 fake_B = netG_A2B(real_A)
 
             img = (real_A[0]*0.5)+0.5
-            writer.add_image('real_A', img, i)
+            writer.add_image('real_A', img, step)
 
             img = (real_B[0]*0.5)+0.5
-            writer.add_image('real_B', img, i)
+            writer.add_image('real_B', img, step)
 
             img = (fake_A[0]*0.5)+0.5
-            writer.add_image('fake_A', img, i)
+            writer.add_image('fake_A', img, step)
 
             img = (fake_B[0]*0.5)+0.5
-            writer.add_image('fake_B', img, i)
+            writer.add_image('fake_B', img, step)
             writer.flush()
 
     filename = savedir + 'cycleGAN' + str(epoch) + '.pth'
