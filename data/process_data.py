@@ -54,8 +54,7 @@ def process_sketchy():
     return classes 
 
 def overlap_dataset(overlaps, count = 0):
-
-    if count>0:
+    if count>0 and count < len(overlaps):
         temp = set()
         for i, val in enumerate(random.sample(overlaps, count)):
             temp.add(val)
@@ -112,4 +111,4 @@ if __name__ == "__main__":
     tuber_classes = process_tuber()
     sketchy_classes = process_sketchy()
     overlaps = tuber_classes.intersection(sketchy_classes)
-    overlap_dataset(overlaps, count=10)
+    overlap_dataset(overlaps, count=20)

@@ -47,23 +47,24 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, index):
         transform = self.data_aug(sketch=True)
-        sketch, class_name = self.load_image(self.sketch, index)
+        sketch, class_name, class_id = self.load_image(self.sketch, index)
         sketch = transform(sketch)
 
         temp = random.randrange(0,len(self.image))
-        image, rName = self.load_image(self.image, temp)
+        image, rName, rid = self.load_image(self.image, temp)
         transform = self.data_aug()
         image = transform(image)
         return sketch, class_id, image, rid, class_name, rName
 
 if __name__ == "__main__":
-    sketch_path = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/sketchy_sketch.csv"
-    image_path = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/sketchy_photo.csv"
+    sketch_path = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/overlap_sketch.csv"
+    image_path = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/overlap_photo.csv"
 
     dataset = CustomDataset(image_path, sketch_path)
     batch_size = 20
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
                                          shuffle=True, pin_memory=True, drop_last=True)
+    print(len(dataloader)*batch_size)
     for i, data in tqdm(enumerate(dataloader)):
         print(data[0])
-        break
+        print(i*batch_size)

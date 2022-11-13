@@ -107,7 +107,7 @@ class PatchMiniBatch(nn.Module):
 
 class PatchMiniBatchNoise(nn.Module):
     def __init__(self, channels=3, feat_map=64, batch=20):
-        super(PatchMiniBatch, self).__init__()
+        super(PatchMiniBatchNoise, self).__init__()
 
         self.mbd1 = MiniBatchDiscrimination(feat_map*4, feat_map*4, feat_map*2, batch) # insert before last layer
         self.main = nn.Sequential(
@@ -146,7 +146,7 @@ class PatchMiniBatchNoise(nn.Module):
 
 class PatchMiniBatchNoiseLabel(nn.Module):
     def __init__(self, channels=3, feat_map=64, batch=20, classes = 10):
-        super(PatchMiniBatch, self).__init__()
+        super(PatchMiniBatchNoiseLabel, self).__init__()
 
         self.mbd1 = MiniBatchDiscrimination(feat_map*4, feat_map*4, feat_map*2, batch) # insert before last layer
         self.main = nn.Sequential(
