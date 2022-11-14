@@ -104,77 +104,55 @@ for epoch in range(num_epochs):
         real_A = Variable(input_A.copy_(data)) # image
         real_B = Variable(input_B.copy_(simdata)) # sketch
 
-        ###### Generators A2B and B2A ######
+        fake_B = netG_A2B(real_A)  # G_A(A)
+        recovered_A = netG_B2A(fake_B)   # G_B(G_A(A))
+        fake_A = netG_B2A(real_B)  # G_B(B)
+        recovered_B = netG_A2B(fake_A)   # G_A(G_B(B))
+
+        ###### Generator #######
+        set_requires_grad([netD_A, netD_B], False)
         optimizer_G.zero_grad()
 
-        # Identity loss
-        # G_A2B(B) should equal B if real B is fed
         same_B = netG_A2B(real_B)
         loss_identity_B = criterion_identity(same_B, real_B)*5.0
 
-        # G_B2A(A) should equal A if real A is fed
         same_A = netG_B2A(real_A)
         loss_identity_A = criterion_identity(same_A, real_A)*5.0
 
-        # GAN loss
-        fake_B = netG_A2B(real_A)
-        pred_fake = netD_B(fake_B)
-        loss_GAN_A2B = criterion_GAN(pred_fake, target_real)
+        pred_fake_B = netD_B(fake_B)
+        loss_GAN_A2B = criterion_GAN(pred_fake_B, target_real)
+        pred_fake_A = netD_A(fake_A)
+        loss_GAN_B2A = criterion_GAN(pred_fake_A, target_real)
 
-        fake_A = netG_B2A(real_B)
-        pred_fake = netD_A(fake_A)
-        loss_GAN_B2A = criterion_GAN(pred_fake, target_real)
-
-        # Cycle loss
-        recovered_A = netG_B2A(fake_B)
         loss_cycle_ABA = criterion_cycle(recovered_A, real_A)*10.0
-
-        recovered_B = netG_A2B(fake_A)
         loss_cycle_BAB = criterion_cycle(recovered_B, real_B)*10.0
 
-        # Total loss
         loss_G = loss_identity_A + loss_identity_B + loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
         loss_G.backward()
 
         optimizer_G.step()
-        ###################################
 
-        ###### Discriminator A ######
-        optimizer_D_A.zero_grad()
+        ####### Discriminator #######
+        set_requires_grad([netD_A, netD_B], True)
+        optimizer_D.zero_grad()
 
-        # Real loss
-        pred_real = netD_A(real_A)
-        loss_D_real = criterion_GAN(pred_real, target_real)
-
-        # Fake loss
-        fake_A = fake_A_buffer.push_and_pop(fake_A.detach())
-        pred_fake = netD_A(fake_A)
-        loss_D_fake = criterion_GAN(pred_fake, target_fake)
-
-        # Total loss
-        loss_D_A = (loss_D_real + loss_D_fake)*0.5
-        loss_D_A.backward()
-
-        optimizer_D_A.step()
-        ###################################
-
-        ###### Discriminator B ######
-        optimizer_D_B.zero_grad()
-
-        # Real loss
+        fake_B = fake_B_buffer.push_and_pop(fake_B.detach())
         pred_real = netD_B(real_B)
         loss_D_real = criterion_GAN(pred_real, target_real)
-
-        # Fake loss
-        fake_B = fake_B_buffer.push_and_pop(fake_B.detach())
-        pred_fake = netD_B(fake_B)
-        loss_D_fake = criterion_GAN(pred_fake, target_fake)
-
-        # Total loss
+        pred_fake_B = netD_B(fake_B)
+        loss_D_fake = criterion_GAN(pred_fake_B, target_fake)
         loss_D_B = (loss_D_real + loss_D_fake)*0.5
         loss_D_B.backward()
 
-        optimizer_D_B.step()
+        fake_A = fake_A_buffer.push_and_pop(fake_A.detach())
+        pred_real = netD_A(real_A)
+        loss_D_real = criterion_GAN(pred_real, target_real)
+        pred_fake_A = netD_A(fake_A)
+        loss_D_fake = criterion_GAN(pred_fake_A, target_fake)
+        loss_D_A = (loss_D_real + loss_D_fake)*0.5
+        loss_D_A.backward()
+
+        optimizer_D.step()
 
         step = epoch*(len(dataloader)-1)*batch_size + i
         if i % 1000 == 0:

@@ -58,7 +58,7 @@ class CustomDataset(Dataset):
 
 if __name__ == "__main__":
     sketch_path = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/overlap_sketch.csv"
-    image_path = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/overlap_photo.csv"
+    image_path = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/combined_csv.csv"
 
     dataset = CustomDataset(image_path, sketch_path)
     batch_size = 20
