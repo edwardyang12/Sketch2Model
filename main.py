@@ -12,18 +12,18 @@ import random
 
 from nets.utils import ReplayBuffer, weights_init, set_requires_grad
 from nets.discriminator import PatchMiniBatchNoise as Discriminator
-from nets.generator import ResnetGenerator as Generator
+from nets.unet_generator import UnetGenerator as Generator
 from data.custom_dataset import CustomDataset
 
 lrG = 0.0001
 lrD = 0.0004
 num_epochs = 40
-batch_size = 16
+batch_size = 40 # 16 for resnet
 ngpu = 4
 num_workers = ngpu*4
 size = 256
 
-writer = SummaryWriter("/edward-slow-vol/Sketch2Model/sketch2model/select_subset")
+writer = SummaryWriter("/edward-slow-vol/Sketch2Model/sketch2model/unet")
 
 datarealname = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/combined_csv.csv"
 simname = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/overlap_sketch.csv"
@@ -67,7 +67,7 @@ optimizer_D = torch.optim.Adam(itertools.chain(netD_A.parameters(), netD_B.param
                                 lr=lrD, betas=(0.5, 0.999))
 
 # Establish convention for real and fake labels during training
-real_label = 1
+real_label = 1.
 fake_label = 0.
 
 Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor

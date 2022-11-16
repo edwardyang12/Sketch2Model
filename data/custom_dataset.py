@@ -60,11 +60,11 @@ if __name__ == "__main__":
     sketch_path = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/overlap_sketch.csv"
     image_path = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/combined_csv.csv"
 
-    dataset = CustomDataset(image_path, sketch_path)
+    dataset = CustomDataset(sketch_path, image_path)
     batch_size = 20
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
                                          shuffle=True, pin_memory=True, drop_last=True)
     print(len(dataloader)*batch_size)
     for i, data in tqdm(enumerate(dataloader)):
         print(data[0])
-        print(i*batch_size)
+        print(data[1], data[4])

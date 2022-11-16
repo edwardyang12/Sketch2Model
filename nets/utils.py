@@ -26,6 +26,36 @@ class ReplayBuffer():
                     to_return.append(element)
         return Variable(torch.cat(to_return))
 
+class ReplayBufferLabels():
+    def __init__(self, max_size=50):
+        assert (max_size > 0), 'Empty buffer or trying to create a black hole. Be careful.'
+        self.max_size = max_size
+        self.data = []
+        self.labels = []
+
+    def push_and_pop(self, data, labels):
+        to_return = []
+        to_return_labels = []
+        for index, element in enumerate(data.data):
+            element = torch.unsqueeze(element, 0)
+            label = torch.unsqueeze(labels.data[index],0)
+            if len(self.data) < self.max_size:
+                self.data.append(element)
+                self.labels.append(label)
+                to_return.append(element)
+                to_return_labels.append(label)
+            else:
+                if random.uniform(0,1) > 0.5:
+                    i = random.randint(0, self.max_size-1)
+                    to_return.append(self.data[i].clone())
+                    to_return_labels.append(self.labels[i].clone())
+                    self.data[i] = element
+                    self.labels[i] = label
+                else:
+                    to_return.append(element)
+                    to_return_labels.append(label)
+        return Variable(torch.cat(to_return)), Variable(torch.cat(to_return_labels))
+
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Conv2d') != -1:

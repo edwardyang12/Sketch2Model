@@ -179,8 +179,8 @@ class PatchMiniBatchNoiseLabel(nn.Module):
 
         self.classifier = nn.Sequential(
             # need to flatten before using
-            Linear(feat_map*4*16*16, classes),
-            nn.ReLU(True)
+            # 246016 is number of features?
+            nn.Linear(246016, classes),
         )
 
     def forward(self, input):
