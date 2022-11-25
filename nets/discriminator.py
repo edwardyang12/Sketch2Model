@@ -7,8 +7,7 @@ class OrigDiscriminator(nn.Module):
     def __init__(self, channels=3, feat_map=64, batch=20):
         super(OrigDiscriminator, self).__init__()
         self.main = nn.Sequential(
-            # input is (channels) x 512 x 512
-            # input is actually (chennels) x 64 x 64 patches
+
             nn.Conv2d(channels, feat_map, 4, 2, 1, bias=False),
             nn.BatchNorm2d(feat_map),
             nn.LeakyReLU(0.2, inplace=True),
@@ -29,9 +28,24 @@ class OrigDiscriminator(nn.Module):
             nn.BatchNorm2d(feat_map * 16),
             nn.LeakyReLU(0.2, inplace=True),
 
+            nn.Conv2d(feat_map * 16, feat_map * 32, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 32),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(feat_map * 32, feat_map * 64, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 64),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(feat_map * 64, feat_map * 128, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 128),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(feat_map * 128, feat_map * 256, 4, 1, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 256),
+            nn.LeakyReLU(0.2, inplace=True),
+
             # state size. (feat_map*8) x 4 x 4
-            nn.Conv2d(feat_map * 16, 1, 4, 1, 0, bias=False),
-            nn.Sigmoid() # no sigmoid when running cycle GAN
+            nn.Conv2d(feat_map * 256, 3, 4, 1, 0, bias=False),
         )
 
     def forward(self, input):
@@ -55,12 +69,15 @@ class PatchGAN(nn.Module):
             nn.BatchNorm2d(feat_map * 4),
             nn.LeakyReLU(0.2, inplace=True),
 
-            # state size. (feat_map*8) x 4 x 4
-            nn.Conv2d(feat_map * 4, feat_map*8, 4, 1, 1, bias=False),
+            nn.Conv2d(feat_map * 4, feat_map*8, 4, 2, 1, bias=False),
             nn.BatchNorm2d(feat_map * 8),
             nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Conv2d(feat_map * 8, 3, 4, 1, 1, bias=False),
+            nn.Conv2d(feat_map * 8, feat_map*16, 4, 1, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 16),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(feat_map * 16, 3, 4, 1, 1, bias=False),
         )
 
     def forward(self, input):
@@ -73,7 +90,7 @@ class PatchMiniBatch(nn.Module):
         super(PatchMiniBatch, self).__init__()
 
         # 15,15 determined from the patch size
-        self.mbd1 = MiniBatchDiscrimination(feat_map*4, feat_map*4, feat_map*2, batch) # insert before last layer
+        self.mbd1 = MiniBatchDiscrimination(feat_map*8, feat_map*8, feat_map*4, batch) # insert before last layer
         self.main = nn.Sequential(
             # input is actually (channels) x 64 x 64 patches
             nn.Conv2d(channels, feat_map, 4, 2, 1, bias=False),
@@ -88,15 +105,19 @@ class PatchMiniBatch(nn.Module):
             nn.BatchNorm2d(feat_map * 4),
             nn.LeakyReLU(0.2, inplace=True),
 
+            nn.Conv2d(feat_map*4, feat_map * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 8),
+            nn.LeakyReLU(0.2, inplace=True),
+
             # state size. (feat_map*8) x 4 x 4
-            nn.Conv2d(feat_map * 4, feat_map*4, 4, 1, 1, bias=False),
-            nn.BatchNorm2d(feat_map * 4),
+            nn.Conv2d(feat_map * 8, feat_map*8, 4, 1, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 8),
             nn.LeakyReLU(0.2, inplace=True),
 
         )
         self.feat_map = feat_map
         self.batch = batch
-        self.out = nn.Conv2d(feat_map * 8, 3, 4, 1, 1, bias=False)
+        self.out = nn.Conv2d(feat_map * 16, 3, 4, 1, 1, bias=False)
 
     def forward(self, input):
         x = self.main(input)
@@ -109,7 +130,7 @@ class PatchMiniBatchNoise(nn.Module):
     def __init__(self, channels=3, feat_map=64, batch=20):
         super(PatchMiniBatchNoise, self).__init__()
 
-        self.mbd1 = MiniBatchDiscrimination(feat_map*4, feat_map*4, feat_map*2, batch) # insert before last layer
+        self.mbd1 = MiniBatchDiscrimination(feat_map*8, feat_map*8, feat_map*4, batch) # insert before last layer
         self.main = nn.Sequential(
 
             GaussianNoise(),
@@ -128,14 +149,19 @@ class PatchMiniBatchNoise(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
 
             GaussianNoise(),
-            nn.Conv2d(feat_map * 4, feat_map*4, 4, 1, 1, bias=False),
-            nn.BatchNorm2d(feat_map * 4),
+            nn.Conv2d(feat_map * 4, feat_map*8, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 8),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            GaussianNoise(),
+            nn.Conv2d(feat_map * 8, feat_map*8, 4, 1, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 8),
             nn.LeakyReLU(0.2, inplace=True),
 
         )
         self.feat_map = feat_map
         self.batch = batch
-        self.out = nn.Conv2d(feat_map * 8, 3, 4, 1, 1, bias=False)
+        self.out = nn.Conv2d(feat_map * 16, 3, 4, 1, 1, bias=False)
 
     def forward(self, input):
         x = self.main(input)
@@ -148,7 +174,7 @@ class PatchMiniBatchNoiseLabel(nn.Module):
     def __init__(self, channels=3, feat_map=64, batch=20, classes = 10):
         super(PatchMiniBatchNoiseLabel, self).__init__()
 
-        self.mbd1 = MiniBatchDiscrimination(feat_map*4, feat_map*4, feat_map*2, batch) # insert before last layer
+        self.mbd1 = MiniBatchDiscrimination(feat_map*8, feat_map*8, feat_map*4, batch) # insert before last layer
         self.main = nn.Sequential(
 
             GaussianNoise(),
@@ -167,20 +193,26 @@ class PatchMiniBatchNoiseLabel(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
 
             GaussianNoise(),
-            nn.Conv2d(feat_map * 4, feat_map*4, 4, 1, 1, bias=False),
-            nn.BatchNorm2d(feat_map * 4),
+            nn.Conv2d(feat_map * 4, feat_map*8, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 8),
             nn.LeakyReLU(0.2, inplace=True),
+
+            GaussianNoise(),
+            nn.Conv2d(feat_map * 8, feat_map*8, 4, 1, 1, bias=False),
+            nn.BatchNorm2d(feat_map * 8),
+            nn.LeakyReLU(0.2, inplace=True),
+
 
         )
         self.feat_map = feat_map
         self.batch = batch
-        self.out = nn.Conv2d(feat_map * 8, 3, 4, 1, 1, bias=False)
+        self.out = nn.Conv2d(feat_map * 16, 3, 4, 1, 1, bias=False)
         self.classes = classes
 
         self.classifier = nn.Sequential(
             # need to flatten before using
             # 246016 is number of features?
-            nn.Linear(246016, classes),
+            nn.Linear(115200, classes),
         )
 
     def forward(self, input):

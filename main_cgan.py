@@ -1,11 +1,7 @@
 import torch
 import torch.nn as nn
-import torchvision.transforms.functional as F
-import torchvision.transforms as Transforms
 from torch.utils.tensorboard import SummaryWriter
-import itertools
 from torch.autograd import Variable
-from PIL import Image
 import numpy as np
 import sys
 import random
@@ -18,12 +14,12 @@ from data.custom_dataset import CustomDataset
 lrG = 0.0001
 lrD = 0.0004
 num_epochs = 40
-batch_size = 40
+batch_size = 80
 ngpu = 4  
 num_workers = ngpu*4
 size = 256
 
-writer = SummaryWriter("/edward-slow-vol/Sketch2Model/sketch2model/naive_labels")
+writer = SummaryWriter("/edward-slow-vol/Sketch2Model/sketch2model/cgan")
 
 datarealname = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/combined_csv.csv"
 simname = "/edward-slow-vol/Sketch2Model/Sketch2Model/data/overlap_sketch.csv"
@@ -36,36 +32,26 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, pin_mem
 
 
 device = torch.device("cuda" if (torch.cuda.is_available()) else "cpu")
-netG_A2B = Generator().to(device)
-netG_B2A = Generator().to(device)
+netG_B2A = Generator(use_dropout=True).to(device)
 if (device.type == 'cuda') and (ngpu > 1):
-    netG_A2B = nn.DataParallel(netG_A2B, list(range(ngpu)))
     netG_B2A = nn.DataParallel(netG_B2A, list(range(ngpu)))
 
-netG_A2B.apply(weights_init)
 netG_B2A.apply(weights_init)
 
 netD_A = Discriminator(batch=int(batch_size/ngpu)).to(device)
-netD_B = Discriminator(batch=int(batch_size/ngpu)).to(device)
 
 if (device.type == 'cuda') and (ngpu > 1):
     netD_A = nn.DataParallel(netD_A, list(range(ngpu)))
-    netD_B = nn.DataParallel(netD_B, list(range(ngpu)))
 
 netD_A.apply(weights_init)
-netD_B.apply(weights_init)
 
 # Lossess
 criterion_GAN = torch.nn.MSELoss()
-criterion_cycle = torch.nn.L1Loss()
-criterion_identity = torch.nn.L1Loss()
 criterion_classification = nn.CrossEntropyLoss()
 
 # Optimizers & LR schedulers
-optimizer_G = torch.optim.Adam(itertools.chain(netG_A2B.parameters(), netG_B2A.parameters()),
-                                lr=lrG, betas=(0.5, 0.999))
-optimizer_D = torch.optim.Adam(itertools.chain(netD_A.parameters(), netD_B.parameters()), 
-                                lr=lrD, betas=(0.5, 0.999))
+optimizer_G = torch.optim.Adam(netG_B2A.parameters(), lr=lrG, betas=(0.5, 0.999))
+optimizer_D = torch.optim.Adam(netD_A.parameters(), lr=lrD, betas=(0.5, 0.999))
 
 
 # Establish convention for real and fake labels during training
@@ -89,7 +75,6 @@ target_real = torch.full((batch_size,3,out_size,out_size), real_label, dtype=tor
 target_fake = torch.full((batch_size,3,out_size,out_size), fake_label, dtype=torch.float, device=device)
 
 fake_A_buffer = ReplayBufferLabels()
-fake_B_buffer = ReplayBufferLabels()
 iters = 0
 
 print("Starting Training Loop...")
@@ -102,76 +87,46 @@ for epoch in range(num_epochs):
         i = i*batch_size
         simdata, sim_id, data, data_id, simname, realname = data
 
-        b_size,channels,h,w = data.shape
-
         real_A = Variable(input_A.copy_(data)) # image
         real_B = Variable(input_B.copy_(simdata)) # sketch
 
         data_id = Variable(input_A_labels.copy_(data_id)) # image_id
         sim_id = Variable(input_B_labels.copy_(sim_id)) # sketch_id
 
-        fake_B = netG_A2B(real_A)  # G_A(A)
-        recovered_A = netG_B2A(fake_B)   # G_B(G_A(A))
         fake_A = netG_B2A(real_B)  # G_B(B)
-        recovered_B = netG_A2B(fake_A)   # G_A(G_B(B))
 
         ###### Generator #######
-        set_requires_grad([netD_A, netD_B], False)
+        set_requires_grad([netD_A], False)
         optimizer_G.zero_grad()
 
-        same_B = netG_A2B(real_B)
-        loss_identity_B = criterion_identity(same_B, real_B)*5.0
+        pred_fake_A, _ = netD_A(fake_A)
+        loss_GAN_B2A = criterion_GAN(pred_fake_A, target_real * 0.9)
 
-        same_A = netG_B2A(real_A)
-        loss_identity_A = criterion_identity(same_A, real_A)*5.0
-
-        pred_fake_B, pred_fake_B_labels = netD_B(fake_B)
-        loss_GAN_A2B = criterion_GAN(pred_fake_B, target_real)
-        pred_fake_A, pred_fake_A_labels = netD_A(fake_A)
-        loss_GAN_B2A = criterion_GAN(pred_fake_A, target_real)
-
-        loss_classification_A = criterion_classification(pred_fake_B_labels, data_id)*10.0
-        loss_classification_B = criterion_classification(pred_fake_A_labels, sim_id)*10.0
-
-        loss_cycle_ABA = criterion_cycle(recovered_A, real_A)*10.0
-        loss_cycle_BAB = criterion_cycle(recovered_B, real_B)*10.0
-
-        loss_G = loss_identity_A + loss_identity_B + loss_GAN_A2B + loss_GAN_B2A + loss_cycle_ABA + loss_cycle_BAB
-        loss_G += loss_classification_A + loss_classification_B
+        loss_G = loss_GAN_B2A
         loss_G.backward()
 
         optimizer_G.step()
 
         ####### Discriminator #######
-        set_requires_grad([netD_A, netD_B], True)
+        set_requires_grad([netD_A], True)
         optimizer_D.zero_grad()
-
-        fake_B, fake_data_id = fake_B_buffer.push_and_pop(fake_B.detach(), torch.reshape(data_id.detach(),(batch_size,1)))
-        pred_real, pred_real_B_labels = netD_B(real_B)
-        loss_D_real = criterion_GAN(pred_real, target_real)
-        loss_classification_B_real = criterion_classification(pred_real_B_labels, sim_id)
-
-        pred_fake_B, pred_fake_B_labels = netD_B(fake_B)
-        loss_D_fake = criterion_GAN(pred_fake_B, target_fake)
-        fake_data_id = torch.squeeze(fake_data_id, 1)
-        loss_classification_B_fake = criterion_classification(pred_fake_B_labels, fake_data_id)
-
-        loss_D_B = (loss_D_real + loss_D_fake)*0.5 + (loss_classification_B_fake + loss_classification_B_real)*0.5
-        loss_D_B.backward()
-
 
         fake_A, fake_sim_id = fake_A_buffer.push_and_pop(fake_A.detach(), torch.reshape(sim_id.detach(),(batch_size,1)))
         pred_real, pred_real_A_labels = netD_A(real_A)
-        loss_D_real = criterion_GAN(pred_real, target_real)
+        noise = random.uniform(0.7, 1.2)
+        loss_D_real = criterion_GAN(pred_real, target_real*noise)
         loss_classification_A_real = criterion_classification(pred_real_A_labels, data_id)
 
         pred_fake_A, pred_fake_A_labels = netD_A(fake_A)
-        loss_D_fake = criterion_GAN(pred_fake_A, target_fake)
+        noise = random.uniform(0.0, 0.3)
+        loss_D_fake = criterion_GAN(pred_fake_A, target_fake + noise)
         fake_sim_id = torch.squeeze(fake_sim_id, 1)
         loss_classification_A_fake = criterion_classification(pred_fake_A_labels, fake_sim_id)
 
-        loss_D_A = (loss_D_real + loss_D_fake)*0.5 + (loss_classification_A_fake + loss_classification_A_real)*0.5
-        loss_D_A.backward()
+        loss_D_A_real = loss_D_real + loss_classification_A_real
+        loss_D_A_real.backward()
+        loss_D_A_fake = loss_D_fake + loss_classification_A_fake
+        loss_D_A_fake.backward()
 
         optimizer_D.step()
 
@@ -179,13 +134,10 @@ for epoch in range(num_epochs):
         if i % 1000 == 0:
             loss_dict = {
                 'loss_G': loss_G.item(),
-                'loss_G_identity': (loss_identity_A + loss_identity_B).item(),
-                'loss_G_GAN': (loss_GAN_A2B + loss_GAN_B2A).item(),
-                'loss_G_cycle': (loss_cycle_ABA + loss_cycle_BAB).item(),
-                'loss_G_classification': (loss_classification_A +loss_classification_B).item(),
-                'loss_D': (loss_D_A + loss_D_B).item(),
-                'loss_D_classification': (loss_classification_B_fake + loss_classification_B_real + loss_classification_A_fake + loss_classification_A_real).item(),
-                'loss_D_GAN': ((loss_D_A + loss_D_B) - (loss_classification_B_fake + loss_classification_B_real + loss_classification_A_fake + loss_classification_A_real)*0.5).item(),
+                'loss_G_GAN': (loss_GAN_B2A).item(),
+                'loss_D': (loss_D_A_fake + loss_D_A_real).item()*0.5,
+                'loss_D_classification': (loss_classification_A_fake + loss_classification_A_real).item(),
+                'loss_D_GAN': ((loss_D_A_fake + loss_D_A_real) - (loss_classification_A_fake + loss_classification_A_real)).item()*0.5,
 
             }
             writer.add_scalars('losses', loss_dict, step)
@@ -193,20 +145,12 @@ for epoch in range(num_epochs):
         if i % 4000 == 0 or ((epoch == num_epochs-1) and (i == (len(dataloader)-1)*batch_size)):
             with torch.no_grad():
                 fake_A = netG_B2A(real_B)
-                fake_B = netG_A2B(real_A)
-
-            img = (real_A[0]*0.5)+0.5
-            writer.add_image('real_A '+ str(data_id[0].item()), img, step)
 
             img = (real_B[0]*0.5)+0.5
             writer.add_image('real_B '+ str(sim_id[0].item()), img, step)
 
             img = (fake_A[0]*0.5)+0.5
             writer.add_image('fake_A ' + str(sim_id[0].item()), img, step)
-
-            img = (fake_B[0]*0.5)+0.5
-            writer.add_image('fake_B ' + str(data_id[0].item()), img, step)
-            writer.flush()
 
     filename = savedir + 'cycleGAN' + str(epoch) + '.pth'
     state = {'state_dict': netG_B2A.state_dict()}
