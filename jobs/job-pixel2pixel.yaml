@@ -1,0 +1,68 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: edward-nerf  # Replace with something like "${USER_NAME}-{EXP_NAME}"
+  namespace: ucsd-haosulab
+spec:
+  ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
+  template:
+    spec:
+      containers:
+        - name: gpu-container
+          image: edwardy99/nerf
+          # imagePullPolicy: Always
+          command:
+            - "sh"
+            - "-c"
+          args:
+            - "pip install lmdb pandas && apt install unzip
+            && unzip /edward-slow-vol/Sketch2Model/stylegan2-pytorch/ninja-linux.zip -d /usr/local/bin/
+            && update-alternatives --install /usr/bin/ninja ninja /usr/local/bin/ninja 1 --force
+	    && cd /edward-slow-vol/Sketch2Model/pixel2style2pixel/
+            && rm -rf /edward-slow-vol/Sketch2Model/sketch2model/test2
+            && python scripts/train.py --dataset_type=edward_sketch_to_image --exp_dir=/edward-slow-vol/Sketch2Model/sketch2model/test2 --workers=8 --batch_size=4 --test_batch_size=2 --test_workers=2 --val_interval=2500 --save_interval=5000 --encoder_type=GradualStyleEncoder --start_from_latent_avg --lpips_lambda=0.8 --l2_lambda=1 --w_norm_lambda=0.005 --label_nc=1 --input_nc=1 --output_size=256 --moco_lambda=0 --id_lambda=0
+      "
+          resources:
+            requests:
+              cpu: "4"
+              memory: "8Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "6"
+              memory: "10Gi"
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+            - name: edward-slow-vol
+              mountPath: /edward-slow-vol
+
+      volumes:
+        - name: dshm  # shared memory, required for the multi-worker dataloader
+          emptyDir:
+            medium: Memory
+        - name: edward-slow-vol
+          persistentVolumeClaim:
+            claimName: edward-slow-vol
+
+      restartPolicy: Never
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - k8s-haosu-14.sdsc.optiputer.net
+                      - k8s-haosu-23.sdsc.optiputer.net
+                  - key: nautilus.io/group
+                    operator: In
+                    values:
+                      - haosu
+                  - key: nvidia.com/gpu.product
+                    operator: In
+                    values:
+                  #   - NVIDIA-GeForce-RTX-1080-Ti
+                      - NVIDIA-GeForce-RTX-2080-Ti
+  backoffLimit: 0  # The number of attempts to restart after crash

@@ -1,0 +1,67 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: edward-nerf1  # Replace with something like "${USER_NAME}-{EXP_NAME}"
+  namespace: ucsd-haosulab
+spec:
+  ttlSecondsAfterFinished: 86400  # Wait one day to delete completed jobs
+  template:
+    spec:
+      containers:
+        - name: gpu-container
+          image: edwardy99/nerf
+          # imagePullPolicy: Always
+          command:
+            - "sh"
+            - "-c"
+          args:
+            - "pip install lmdb && apt install unzip
+            && unzip /edward-slow-vol/Sketch2Model/stylegan2-pytorch/ninja-linux.zip -d /usr/local/bin/
+            && update-alternatives --install /usr/bin/ninja ninja /usr/local/bin/ninja 1 --force
+	    && cd /edward-slow-vol/Sketch2Model/stylegan2-pytorch/
+            && python -m torch.distributed.launch --nproc_per_node=4 --master_port=5000 train.py --batch 4 /edward-slow-vol/Sketch2Model/lmdb_dataset_chair
+      "
+          resources:
+            requests:
+              cpu: "6"
+              memory: "15Gi"
+              nvidia.com/gpu: "4"
+            limits:
+              cpu: "10"
+              memory: "17Gi"
+              nvidia.com/gpu: "4"
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+            - name: edward-slow-vol
+              mountPath: /edward-slow-vol
+
+      volumes:
+        - name: dshm  # shared memory, required for the multi-worker dataloader
+          emptyDir:
+            medium: Memory
+        - name: edward-slow-vol
+          persistentVolumeClaim:
+            claimName: edward-slow-vol
+
+      restartPolicy: Never
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - k8s-haosu-14.sdsc.optiputer.net
+                      - k8s-haosu-23.sdsc.optiputer.net
+                  - key: nautilus.io/group
+                    operator: In
+                    values:
+                      - haosu
+                  - key: nvidia.com/gpu.product
+                    operator: In
+                    values:
+                  #   - NVIDIA-GeForce-RTX-1080-Ti
+                      - NVIDIA-GeForce-RTX-2080-Ti
+  backoffLimit: 0  # The number of attempts to restart after crash
