@@ -133,7 +133,7 @@ def filter_imagenet(translations):
 def aggregate_imagenet(translations):
     path = "/edward-slow-vol/Sketch2Model/ImageSubNet"
     header = ['path', 'class']
-    with open('overlap_photo_imagenet.csv', 'w') as f:
+    with open('chair.csv', 'w') as f:
         writer = csv.writer(f)
         writer.writerow(header)
         for filename in tqdm(os.listdir(path)):
@@ -141,6 +141,26 @@ def aggregate_imagenet(translations):
                 for v in value:
                     if v in filename:
                         writer.writerow(["/edward-slow-vol/Sketch2Model/ImageSubNet/" + filename, key])
+
+def aggregate_sketch(translations):
+    sketch = {}
+    header = ['path', 'class']
+    with open('chair_sketch.csv', 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        path = "/edward-slow-vol/Sketch2Model/256x256/sketch/"
+        for (dirpath, dirnames, filenames) in tqdm(os.walk(path)):
+            sub = dirpath.split("/")[-1]
+            if sub and sub in translations:
+                for name in filenames:
+                    writer.writerow([dirpath + "/" + name, sub])
+        path = "/edward-slow-vol/Sketch2Model/png/"
+        for (dirpath, dirnames, filenames) in tqdm(os.walk(path)):
+            sub = dirpath.split("/")[-1]
+            if sub and sub in translations:
+                for name in filenames:
+                    writer.writerow([dirpath + "/" + name, sub])
+
 
 def combine_csv(csvs):
     combined_csv = pd.concat([pd.read_csv(f) for f in csvs ])
@@ -165,6 +185,9 @@ if __name__ == "__main__":
         'cat': ['n02123394', 'n02124075', 'n02123597', 'n02123045'],
         'tank': ['n04389033']
     }
+
+    translations = {'chair'}
     # overlap_dataset(choice)
     # aggregate_imagenet(translations)
+    aggregate_sketch(translations)
     # combine_csv(['overlap_photo_imagenet.csv', 'overlap_photo.csv'])
